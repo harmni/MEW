@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-05-22T05:43:38.923055",
+  "session_name": "test_session",
+  "companies": {
+    "TechCorp": {
+      "name": "TechCorp",
+      "description": "Tech products",
+      "industry": "SaaS",
+      "created_at": "2026-05-22T05:43:38.923020",
+      "status": "active",
+      "tasks": []
+    }
+  },
+  "active_tasks": {
+    "TASK_001": {
+      "id": "TASK_001",
+      "title": "Build API",
+      "description": "Build REST API",
+      "assigned_to": "DevAgent",
+      "priority": "medium",
+      "deadline": null,
+      "created_at": "2026-05-22T05:43:38.923043",
+      "status": "pending",
+      "progress": 0
+    }
+  },
+  "sub_agents": {
+    "DevAgent": {
+      "name": "DevAgent",
+      "specialization": "product_development",
+      "created_at": "2026-05-22T05:43:38.923038",
+      "status": "active",
+      "assigned_tasks": []
+    }
+  },
+  "operational_log": [
+    {
+      "timestamp": "2026-05-22T05:43:38.923034",
+      "message": "Company registered: TechCorp (SaaS)"
+    },
+    {
+      "timestamp": "2026-05-22T05:43:38.923040",
+      "message": "Sub-agent spawned: DevAgent (specialization: product_development)"
+    },
+    {
+      "timestamp": "2026-05-22T05:43:38.923045",
+      "message": "Task created: Build API (assigned to DevAgent)"
+    }
+  ],
+  "conversation_history": []
+}
