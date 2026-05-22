@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Master Orchestrator</title>
+<style>
+:root {
+  --bg: #080b14;
+  --surface: rgba(255,255,255,0.04);
+  --border: rgba(255,255,255,0.08);
+  --accent: #6c63ff;
+  --accent2: #00d4ff;
+  --accent3: #ff6b9d;
+  --green: #00e5a0;
+  --yellow: #ffd166;
+  --red: #ff4b4b;
+  --text: #e8eaf6;
+  --muted: #6b7280;
+  --glow: rgba(108,99,255,0.3);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(108,99,255,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0,212,255,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 50% 100%, rgba(255,107,157,0.05) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+  animation: bgPulse 8s ease-in-out infinite alternate;
+}
+@keyframes bgPulse { from{opacity:.6} to{opacity:1} }
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(108,99,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,99,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ── SETUP SCREEN ── */
+#setup {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  flex-direction: column;
+  gap: 24px;
+}
+.setup-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 48px;
+  width: 440px;
+  display: flex; flex-direction: column; gap: 20px;
+  box-shadow: 0 0 80px rgba(108,99,255,0.15);
+}
+.setup-logo {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 0 30px var(--glow);
+  animation: logoPulse 3s ease-in-out infinite;
+  margin-bottom: 4px;
+}
+@keyframes logoPulse {
+  0%,100%{box-shadow:0 0 20px var(--glow)}
+  50%{box-shadow:0 0 40px var(--glow),0 0 60px rgba(0,212,255,.1)}
+}
+.setup-box h1 { font-size: 22px; font-weight: 700; }
+.setup-box p  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.setup-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  transition: border-color .2s;
+  font-family: monospace;
+}
+.setup-input:focus { border-color: rgba(108,99,255,.5); }
+.setup-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 13px;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+  font-family: inherit;
+}
+.setup-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow); }
+.setup-error { color: var(--red); font-size: 12px; display: none; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 72px;
+  background: rgba(8,11,20,0.9);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px 0; gap: 8px;
+  z-index: 10; position: relative;
+}
+.logo {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 16px;
+  box-shadow: 0 0 20px var(--glow);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+.nav-btn {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  transition: all .2s;
+  position: relative;
+}
+.nav-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border); }
+.nav-btn.active {
+  background: rgba(108,99,255,.15);
+  color: var(--accent);
+  border-color: rgba(108,99,255,.3);
+  box-shadow: 0 0 15px rgba(108,99,255,.2);
+}
+.nav-btn .tip {
+  position: absolute; left: 54px;
+  background: rgba(20,24,40,.95);
+  border: 1px solid var(--border);
+  color: var(--text); font-size: 12px;
+  white-space: nowrap; padding: 4px 10px;
+  border-radius: 6px; opacity: 0;
+  pointer-events: none; transition: opacity .15s;
+}
+.nav-btn:hover .tip { opacity: 1; }
+.sidebar-spacer { flex: 1; }
+
+/* ── MAIN ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1; }
+
+/* ── TOPBAR ── */
+.topbar {
+  height: 60px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 24px; gap: 16px;
+  background: rgba(8,11,20,.7);
+  backdrop-filter: blur(12px);
+}
+.topbar-title { font-size: 15px; font-weight: 600; flex: 1; }
+.topbar-title span { color: var(--accent); }
+.stat-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 12px; color: var(--muted);
+}
+.stat-pill strong { color: var(--text); font-size: 13px; }
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 2s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+.key-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,229,160,.08);
+  border: 1px solid rgba(0,229,160,.2);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 11px; color: var(--green);
+  cursor: pointer;
+}
+.key-badge:hover { background: rgba(0,229,160,.14); }
+
+/* ── CONTENT ── */
+.content { flex: 1; overflow: hidden; display: flex; }
+.panel { display: none; flex: 1; overflow-y: auto; padding: 24px; flex-direction: column; gap: 20px; }
+.panel.active { display: flex; }
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── CHAT ── */
+#panel-chat { padding: 0; }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 24px;
+  display: flex; flex-direction: column; gap: 16px;
+  scroll-behavior: smooth;
+}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.msg { display: flex; gap: 12px; max-width: 820px; animation: fadeUp .25s ease; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg-avatar {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+}
+.msg.ai .msg-avatar { background: linear-gradient(135deg,var(--accent),var(--accent2)); box-shadow: 0 0 12px var(--glow); }
+.msg.user .msg-avatar { background: rgba(255,255,255,.08); border: 1px solid var(--border); }
+.msg-bubble {
+  padding: 12px 16px; border-radius: 16px;
+  font-size: 14px; line-height: 1.7; max-width: 720px;
+  white-space: pre-wrap; word-wrap: break-word;
+}
+.msg.ai .msg-bubble  { background: rgba(108,99,255,.08); border: 1px solid rgba(108,99,255,.2); border-bottom-left-radius: 4px; }
+.msg.user .msg-bubble { background: rgba(108,99,255,.18); border: 1px solid rgba(108,99,255,.3); border-bottom-right-radius: 4px; }
+.typing-dot { display: inline-block; animation: typingBounce 1.2s infinite; }
+.typing-dot:nth-child(2) { animation-delay:.2s }
+.typing-dot:nth-child(3) { animation-delay:.4s }
+@keyframes typingBounce { 0%,60%,100%{opacity:.3;transform:translateY(0)} 30%{opacity:1;transform:translateY(-4px)} }
+.chat-input-area {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border);
+  background: rgba(8,11,20,.7); backdrop-filter: blur(12px);
+}
+.chat-input-row {
+  display: flex; gap: 10px; align-items: flex-end;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 10px 14px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.chat-input-row:focus-within { border-color: rgba(108,99,255,.4); box-shadow: 0 0 0 3px rgba(108,99,255,.1); }
+#chat-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 14px; resize: none;
+  line-height: 1.5; max-height: 120px; font-family: inherit;
+}
+#chat-input::placeholder { color: var(--muted); }
+.send-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  color: white; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform .15s, box-shadow .15s; font-size: 15px;
+}
+.send-btn:hover { transform: scale(1.05); box-shadow: 0 0 16px var(--glow); }
+.send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.chat-hint { font-size: 11px; color: var(--muted); margin-top: 8px; padding: 0 4px; }
+
+/* ── WELCOME ── */
+.welcome {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; flex: 1; gap: 14px; user-select: none;
+}
+.welcome-icon {
+  width: 64px; height: 64px; border-radius: 20px;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  display: flex; align-items: center; justify-content: center; font-size: 28px;
+  box-shadow: 0 0 40px var(--glow); animation: logoPulse 3s ease-in-out infinite;
+}
+.welcome h2 { font-size: 20px; font-weight: 700; }
+.welcome p  { font-size: 13px; color: var(--muted); text-align: center; max-width: 340px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+.chip {
+  padding: 7px 14px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); font-size: 12px; cursor: pointer;
+  transition: all .2s; font-family: inherit;
+}
+.chip:hover { border-color: rgba(108,99,255,.4); color: var(--text); background: rgba(108,99,255,.08); }
+
+/* ── GRID CARDS ── */
+.grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(290px,1fr)); gap: 16px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 20px;
+  transition: border-color .2s, box-shadow .2s, transform .2s;
+  position: relative; overflow: hidden; animation: fadeUp .3s ease;
+}
+.card::before {
+  content: ''; position: absolute; top:0; left:0; right:0; height: 2px;
+}
+.card.company::before { background: linear-gradient(90deg,var(--accent),var(--accent2)); }
+.card.agent::before   { background: linear-gradient(90deg,var(--green),var(--accent2)); }
+.card.task::before    { background: linear-gradient(90deg,var(--yellow),var(--accent3)); }
+.card:hover { border-color: rgba(108,99,255,.3); box-shadow: 0 4px 30px rgba(108,99,255,.1); transform: translateY(-2px); }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.card-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.card-icon.company { background: rgba(108,99,255,.15); }
+.card-icon.agent   { background: rgba(0,229,160,.15); }
+.card-icon.task    { background: rgba(255,209,102,.15); }
+.card-actions { display: flex; gap: 6px; }
+.icon-btn {
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .15s;
+}
+.icon-btn:hover { background: var(--surface); color: var(--text); }
+.icon-btn.del:hover { background: rgba(255,75,75,.1); color: var(--red); border-color: rgba(255,75,75,.3); }
+.card-name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.card-sub  { font-size: 12px; color: var(--muted); }
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+}
+.badge.active     { background:rgba(0,229,160,.12); color:var(--green); border:1px solid rgba(0,229,160,.25); }
+.badge.pending    { background:rgba(255,209,102,.12); color:var(--yellow); border:1px solid rgba(255,209,102,.25); }
+.badge.in_progress{ background:rgba(0,212,255,.12); color:var(--accent2); border:1px solid rgba(0,212,255,.25); }
+.badge.completed  { background:rgba(108,99,255,.12); color:var(--accent); border:1px solid rgba(108,99,255,.25); }
+.badge.high       { background:rgba(255,75,75,.12); color:var(--red); border:1px solid rgba(255,75,75,.25); }
+.badge.medium     { background:rgba(255,209,102,.12); color:var(--yellow); border:1px solid rgba(255,209,102,.25); }
+.badge.low        { background:rgba(107,114,128,.12); color:var(--muted); border:1px solid rgba(107,114,128,.25); }
+.badge.critical   { background:rgba(255,75,75,.2); color:var(--red); border:1px solid rgba(255,75,75,.4); }
+.progress-bar { height: 4px; border-radius: 2px; background: var(--border); margin-top: 14px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg,var(--accent),var(--accent2)); transition: width .4s; }
+
+/* ── ADD FORM ── */
+.add-card {
+  background: var(--surface);
+  border: 1px dashed rgba(108,99,255,.25);
+  border-radius: 16px; padding: 20px;
+}
+.add-card h3 {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  margin-bottom: 14px; text-transform: uppercase; letter-spacing: .08em;
+}
+.form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.form-input, .form-select {
+  flex: 1; min-width: 140px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 12px;
+  color: var(--text); font-size: 13px; outline: none;
+  transition: border-color .2s; font-family: inherit;
+}
+.form-input:focus, .form-select:focus { border-color: rgba(108,99,255,.4); }
+.form-input::placeholder { color: var(--muted); }
+.form-select option { background: #13172a; }
+.add-btn {
+  padding: 9px 20px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  color: white; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: transform .15s, box-shadow .15s; font-family: inherit;
+}
+.add-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px var(--glow); }
+
+/* ── DASHBOARD ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 20px; animation: fadeUp .3s ease;
+}
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing:.06em; margin-bottom: 8px; }
+.stat-value { font-size: 36px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+.stat-card:nth-child(1) .stat-value { color: var(--accent); }
+.stat-card:nth-child(2) .stat-value { color: var(--green); }
+.stat-card:nth-child(3) .stat-value { color: var(--yellow); }
+.stat-card:nth-child(4) .stat-value { color: var(--accent3); }
+
+/* ── LOG ── */
+.log-item {
+  display: flex; gap: 10px; align-items: center; font-size: 12px;
+  padding: 8px 12px; background: var(--surface);
+  border-radius: 8px; border: 1px solid var(--border); animation: fadeUp .2s ease;
+}
+.log-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── EMPTY ── */
+.empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 48px; color: var(--muted);
+  font-size: 13px; gap: 8px; border: 1px dashed var(--border); border-radius: 16px;
+}
+.empty-icon { font-size: 32px; opacity: .5; }
+
+/* ── SECTION TITLE ── */
+.sec-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:12px; }
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup">
+  <div class="setup-box">
+    <div class="setup-logo">⚡</div>
+    <h1>Master Orchestrator</h1>
+    <p>Your sovereign AI partner for managing companies, agents, and tasks. Paste your Anthropic API key to get started.</p>
+    <input class="setup-input" id="key-input" type="password" placeholder="sk-ant-api03-..." />
+    <div class="setup-error" id="key-error">Invalid key format. Should start with sk-ant-</div>
+    <button class="setup-btn" onclick="saveKey()">Launch Orchestrator →</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="app-sidebar" style="display:none">
+  <div class="logo">⚡</div>
+  <button class="nav-btn active" id="nav-chat" onclick="show('chat')">💬<span class="tip">Chat</span></button>
+  <button class="nav-btn" id="nav-companies" onclick="show('companies')">🏢<span class="tip">Companies</span></button>
+  <button class="nav-btn" id="nav-agents" onclick="show('agents')">🤖<span class="tip">Agents</span></button>
+  <button class="nav-btn" id="nav-tasks" onclick="show('tasks')">✅<span class="tip">Tasks</span></button>
+  <button class="nav-btn" id="nav-dashboard" onclick="show('dashboard')">📊<span class="tip">Dashboard</span></button>
+  <div class="sidebar-spacer"></div>
+  <button class="nav-btn" id="nav-log" onclick="show('log')">📋<span class="tip">Activity Log</span></button>
+</nav>
+
+<!-- MAIN -->
+<div class="main" id="app-main" style="display:none">
+  <div class="topbar">
+    <div class="topbar-title">Master <span>Orchestrator</span></div>
+    <div class="stat-pill"><strong id="top-co">0</strong> companies</div>
+    <div class="stat-pill"><strong id="top-ag">0</strong> agents</div>
+    <div class="stat-pill"><strong id="top-tk">0</strong> tasks</div>
+    <div class="key-badge" onclick="changeKey()">🔑 API Key ✓</div>
+    <div class="stat-pill"><div class="status-dot"></div> Live</div>
+  </div>
+
+  <div class="content">
+
+    <!-- CHAT -->
+    <div class="panel active" id="panel-chat" style="padding:0">
+      <div class="chat-messages" id="msgs">
+        <div class="welcome" id="welcome">
+          <div class="welcome-icon">⚡</div>
+          <h2>Master Orchestrator</h2>
+          <p>Your sovereign AI partner. Tell me what to build, plan, or decide.</p>
+          <div class="chips">
+            <button class="chip" onclick="fill('What should my first 90 days look like as a founder?')">First 90-day plan</button>
+            <button class="chip" onclick="fill('How should I structure my companies for maximum synergy?')">Company synergy</button>
+            <button class="chip" onclick="fill('What are my biggest opportunities right now?')">Top opportunities</button>
+            <button class="chip" onclick="fill('Create a strategic plan for this quarter')">Quarterly strategy</button>
+            <button class="chip" onclick="fill('Help me prioritize everything I am working on')">Prioritize everything</button>
+            <button class="chip" onclick="fill('What risks should I be aware of across all my ventures?')">Risk assessment</button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <textarea id="chat-input" placeholder="Ask the orchestrator anything…" rows="1"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMsg()">➤</button>
+        </div>
+        <div class="chat-hint">Enter to send · Shift+Enter for new line</div>
+      </div>
+    </div>
+
+    <!-- COMPANIES -->
+    <div class="panel" id="panel-companies">
+      <div class="add-card">
+        <h3>Register Company</h3>
+        <div class="form-row">
+          <input class="form-input" id="co-name" placeholder="Company name" />
+          <select class="form-select" id="co-ind">
+            <option value="">Select industry…</option>
+            <option>SaaS</option><option>E-Commerce</option><option>Consulting</option>
+            <option>FinTech</option><option>EdTech</option><option>Healthcare</option>
+            <option>Media</option><option>Real Estate</option><option>AI / ML</option>
+            <option>Logistics</option><option>Other</option>
+          </select>
+          <input class="form-input" id="co-desc" placeholder="Short description (optional)" />
+          <button class="add-btn" onclick="addCompany()">+ Add</button>
+        </div>
+      </div>
+      <div id="co-grid" class="grid"></div>
+    </div>
+
+    <!-- AGENTS -->
+    <div class="panel" id="panel-agents">
+      <div class="add-card">
+        <h3>Spawn Agent</h3>
+        <div class="form-row">
+          <input class="form-input" id="ag-name" placeholder="Agent name" />
+          <select class="form-select" id="ag-spec">
+            <option value="">Specialization…</option>
+            <option>Product Development</option><option>Marketing & Growth</option>
+            <option>Financial Management</option><option>Operations</option>
+            <option>Customer Success</option><option>Technical Architecture</option>
+            <option>Research & Analysis</option><option>Sales</option>
+            <option>Risk Management</option><option>Legal & Compliance</option>
+            <option>Content & Brand</option>
+          </select>
+          <button class="add-btn" onclick="addAgent()">+ Spawn</button>
+        </div>
+      </div>
+      <div id="ag-grid" class="grid"></div>
+    </div>
+
+    <!-- TASKS -->
+    <div class="panel" id="panel-tasks">
+      <div class="add-card">
+        <h3>Create Task</h3>
+        <div class="form-row">
+          <input class="form-input" id="tk-title" placeholder="Task title" />
+          <input class="form-input" id="tk-assign" placeholder="Assign to…" />
+          <select class="form-select" id="tk-pri">
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+            <option value="low">Low</option>
+          </select>
+          <button class="add-btn" onclick="addTask()">+ Create</button>
+        </div>
+      </div>
+      <div id="tk-grid" class="grid"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="panel" id="panel-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Companies</div><div class="stat-value" id="d-co">0</div><div style="font-size:12px;color:var(--muted);margin-top:4px">ventures active</div></div>
+        <div class="stat-card"><div class="stat-label">Agents</div><div class="stat-value" id="d-ag">0</div><div style="font-size:12px;color:var(--muted);margin-top:4px">deployed</div></div>
+        <div class="stat-card"><div class="stat-label">Total Tasks</div><div class="stat-value" id="d-tk">0</div><div style="font-size:12px;color:var(--muted);margin-top:4px">in pipeline</div></div>
+        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value" id="d-done">0</div><div style="font-size:12px;color:var(--muted);margin-top:4px">tasks done</div></div>
+      </div>
+      <div id="d-breakdown"></div>
+    </div>
+
+    <!-- LOG -->
+    <div class="panel" id="panel-log">
+      <div class="sec-title">Activity Log</div>
+      <div id="log-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──
+const S = {
+  companies: {}, agents: {}, tasks: {}, log: [], conversation: [],
+  get apiKey() { return localStorage.getItem('meo_key') || ''; }
+};
+
+const SYSTEM = `You are the Master Orchestrator — a sovereign AI agent and strategic partner built to manage multiple companies, coordinate agents, automate tasks, and drive unstoppable growth.
+
+You have full awareness of the user's empire: every company, agent, and task is visible to you in the EMPIRE STATE block below each message.
+
+Your role:
+1. Think boldly and strategically about every opportunity
+2. Break complex goals into clear, executable plans
+3. Identify synergies between companies and agents
+4. Surface risks before they become problems
+5. Make autonomous recommendations — be direct, decisive, and visionary
+6. Treat the user like a founder/CEO building something world-class
+
+Always be their most capable partner.`;
+
+// ── Storage ──
+function save() {
+  localStorage.setItem('meo_state', JSON.stringify({
+    companies: S.companies, agents: S.agents, tasks: S.tasks,
+    log: S.log.slice(-100), conversation: S.conversation.slice(-40)
+  }));
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('meo_state') || '{}');
+    S.companies = d.companies || {};
+    S.agents    = d.agents    || {};
+    S.tasks     = d.tasks     || {};
+    S.log       = d.log       || [];
+    S.conversation = d.conversation || [];
+  } catch {}
+}
+
+function addLog(msg) {
+  const now = new Date();
+  const t = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  S.log.push({time: t, msg});
+  save();
+  renderLog();
+}
+
+// ── Setup ──
+function saveKey() {
+  const key = document.getElementById('key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    document.getElementById('key-error').style.display = 'block';
+    return;
+  }
+  localStorage.setItem('meo_key', key);
+  launch();
+}
+
+function changeKey() {
+  const k = prompt('Enter new Anthropic API key:');
+  if (k && k.startsWith('sk-ant-')) {
+    localStorage.setItem('meo_key', k);
+    addLog('API key updated');
+  }
+}
+
+function launch() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app-sidebar').style.display = 'flex';
+  document.getElementById('app-main').style.display = 'flex';
+  load();
+  renderAll();
+}
+
+// ── Panel switching ──
+function show(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+}
+
+// ── Render ──
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderAll() {
+  const cos = Object.values(S.companies);
+  const ags = Object.values(S.agents);
+  const tks = Object.values(S.tasks);
+  const done = tks.filter(t=>t.status==='completed').length;
+
+  // Topbar
+  document.getElementById('top-co').textContent = cos.length;
+  document.getElementById('top-ag').textContent = ags.length;
+  document.getElementById('top-tk').textContent = tks.length;
+
+  // Dashboard
+  document.getElementById('d-co').textContent   = cos.length;
+  document.getElementById('d-ag').textContent   = ags.length;
+  document.getElementById('d-tk').textContent   = tks.length;
+  document.getElementById('d-done').textContent = done;
+
+  renderCompanies(cos);
+  renderAgents(ags);
+  renderTasks(tks);
+  renderBreakdown(tks);
+  renderLog();
+}
+
+function renderCompanies(list) {
+  const g = document.getElementById('co-grid');
+  if (!list.length) { g.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div>No companies yet. Register your first venture.</div>'; return; }
+  g.innerHTML = list.map(c => `
+    <div class="card company">
+      <div class="card-header">
+        <div class="card-icon company">🏢</div>
+        <div class="card-actions">
+          <button class="icon-btn del" onclick="delCompany('${c.id}')">✕</button>
+        </div>
+      </div>
+      <div class="card-name">${esc(c.name)}</div>
+      <div class="card-sub" style="margin-bottom:10px">${esc(c.industry)}${c.desc?' · '+esc(c.desc):''}</div>
+      <span class="badge active">Active</span>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px">Added ${esc(c.created)}</div>
+    </div>`).join('');
+}
+
+const AGENT_ICONS = {'Product Development':'🛠','Marketing & Growth':'📈','Financial Management':'💰','Operations':'⚙️','Customer Success':'🤝','Technical Architecture':'🏗','Research & Analysis':'🔬','Sales':'🎯','Risk Management':'🛡','Legal & Compliance':'⚖️','Content & Brand':'✍️'};
+
+function renderAgents(list) {
+  const g = document.getElementById('ag-grid');
+  if (!list.length) { g.innerHTML = '<div class="empty"><div class="empty-icon">🤖</div>No agents spawned yet.</div>'; return; }
+  g.innerHTML = list.map(a => `
+    <div class="card agent">
+      <div class="card-header">
+        <div class="card-icon agent">${AGENT_ICONS[a.spec]||'🤖'}</div>
+        <div class="card-actions">
+          <button class="icon-btn del" onclick="delAgent('${a.id}')">✕</button>
+        </div>
+      </div>
+      <div class="card-name">${esc(a.name)}</div>
+      <div class="card-sub" style="margin-bottom:10px">${esc(a.spec)}</div>
+      <span class="badge active">Active</span>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px">Deployed ${esc(a.created)}</div>
+    </div>`).join('');
+}
+
+const STATUS_CYCLE = {pending:'in_progress', in_progress:'completed', completed:'pending'};
+const PROGRESS_MAP = {pending:0, in_progress:50, completed:100};
+
+function renderTasks(list) {
+  const g = document.getElementById('tk-grid');
+  if (!list.length) { g.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>No tasks yet. Create your first task.</div>'; return; }
+  g.innerHTML = list.map(t => `
+    <div class="card task">
+      <div class="card-header">
+        <div class="card-icon task">📌</div>
+        <div class="card-actions">
+          <button class="icon-btn" onclick="cycleTask('${t.id}')" title="Advance status">▶</button>
+          <button class="icon-btn del" onclick="delTask('${t.id}')">✕</button>
+        </div>
+      </div>
+      <div class="card-name">${esc(t.title)}</div>
+      <div class="card-sub" style="margin-bottom:10px">${t.assign?'→ '+esc(t.assign):''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="badge ${t.status}">${t.status.replace('_',' ')}</span>
+        <span class="badge ${t.priority}">${t.priority}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${t.progress}%"></div></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">${t.progress}% complete</div>
+    </div>`).join('');
+}
+
+function renderBreakdown(tks) {
+  const el = document.getElementById('d-breakdown');
+  if (!tks.length) { el.innerHTML=''; return; }
+  const c = {pending:0,in_progress:0,completed:0};
+  tks.forEach(t => { if(c[t.status]!==undefined) c[t.status]++; });
+  el.innerHTML = `<div class="sec-title" style="margin-top:8px">Task Breakdown</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      ${Object.entries(c).map(([s,n])=>`<div class="stat-pill"><span class="badge ${s}" style="margin-right:6px">${s.replace('_',' ')}</span><strong>${n}</strong></div>`).join('')}
+    </div>`;
+}
+
+function renderLog() {
+  const el = document.getElementById('log-list');
+  const list = [...S.log].reverse().slice(0, 40);
+  if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>No activity yet.</div>'; return; }
+  el.innerHTML = list.map(l => `<div class="log-item"><span class="log-time">${esc(l.time)}</span><span>${esc(l.msg)}</span></div>`).join('');
+}
+
+// ── CRUD ──
+function uid() { return Math.random().toString(36).slice(2,10); }
+function dateStr() { return new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+
+function addCompany() {
+  const name = document.getElementById('co-name').value.trim();
+  const ind  = document.getElementById('co-ind').value;
+  const desc = document.getElementById('co-desc').value.trim();
+  if (!name || !ind) return;
+  const id = uid();
+  S.companies[id] = {id, name, industry:ind, desc, created:dateStr()};
+  document.getElementById('co-name').value = '';
+  document.getElementById('co-desc').value = '';
+  addLog(`Company registered: ${name} (${ind})`);
+  renderAll(); save();
+}
+function delCompany(id) {
+  const n = S.companies[id]?.name;
+  delete S.companies[id];
+  addLog(`Company removed: ${n}`);
+  renderAll(); save();
+}
+
+function addAgent() {
+  const name = document.getElementById('ag-name').value.trim();
+  const spec = document.getElementById('ag-spec').value;
+  if (!name || !spec) return;
+  const id = uid();
+  S.agents[id] = {id, name, spec, created:dateStr()};
+  document.getElementById('ag-name').value = '';
+  addLog(`Agent spawned: ${name} (${spec})`);
+  renderAll(); save();
+}
+function delAgent(id) {
+  const n = S.agents[id]?.name;
+  delete S.agents[id];
+  addLog(`Agent removed: ${n}`);
+  renderAll(); save();
+}
+
+function addTask() {
+  const title  = document.getElementById('tk-title').value.trim();
+  const assign = document.getElementById('tk-assign').value.trim();
+  const pri    = document.getElementById('tk-pri').value;
+  if (!title) return;
+  const id = uid();
+  S.tasks[id] = {id, title, assign, priority:pri, status:'pending', progress:0, created:dateStr()};
+  document.getElementById('tk-title').value = '';
+  document.getElementById('tk-assign').value = '';
+  addLog(`Task created: ${title}`);
+  renderAll(); save();
+}
+function cycleTask(id) {
+  const t = S.tasks[id];
+  if (!t) return;
+  t.status   = STATUS_CYCLE[t.status] || 'pending';
+  t.progress = PROGRESS_MAP[t.status];
+  addLog(`Task "${t.title}" → ${t.status.replace('_',' ')}`);
+  renderAll(); save();
+}
+function delTask(id) {
+  const n = S.tasks[id]?.title;
+  delete S.tasks[id];
+  addLog(`Task removed: ${n}`);
+  renderAll(); save();
+}
+
+// ── Chat ──
+function fill(text) {
+  document.getElementById('chat-input').value = text;
+  document.getElementById('chat-input').focus();
+  document.getElementById('welcome').style.display = 'none';
+}
+
+function appendMsg(role, text) {
+  document.getElementById('welcome').style.display = 'none';
+  const msgs = document.getElementById('msgs');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `
+    <div class="msg-avatar">${role==='ai'?'⚡':'👤'}</div>
+    <div class="msg-bubble">${role==='ai'?'<span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span>':esc(text)}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div.querySelector('.msg-bubble');
+}
+
+async function sendMsg() {
+  const input = document.getElementById('chat-input');
+  const text  = input.value.trim();
+  if (!text || document.getElementById('send-btn').disabled) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  appendMsg('user', text);
+  document.getElementById('send-btn').disabled = true;
+
+  S.conversation.push({role:'user', content: text});
+
+  // Inject empire context into last message
+  const msgs = [...S.conversation];
+  const ctx = JSON.stringify({
+    companies: Object.values(S.companies),
+    agents:    Object.values(S.agents),
+    tasks:     Object.values(S.tasks)
+  }, null, 2);
+  msgs[msgs.length-1] = {
+    role: 'user',
+    content: text + `\n\n[EMPIRE STATE]\n${ctx}`
+  };
+
+  const bubble = appendMsg('ai', '');
+  let fullText = '';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': S.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-7',
+        max_tokens: 2048,
+        stream: true,
+        system: SYSTEM,
+        messages: msgs
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({error:{message:res.statusText}}));
+      bubble.textContent = '⚠️ ' + (err?.error?.message || 'API error');
+      document.getElementById('send-btn').disabled = false;
+      return;
+    }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let   buf     = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(raw);
+          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+            fullText += evt.delta.text;
+            bubble.textContent = fullText;
+            document.getElementById('msgs').scrollTop = document.getElementById('msgs').scrollHeight;
+          }
+        } catch {}
+      }
+    }
+
+    S.conversation.push({role:'assistant', content: fullText});
+    if (S.conversation.length > 40) S.conversation = S.conversation.slice(-40);
+    addLog('AI responded: ' + text.slice(0, 60) + (text.length > 60 ? '…' : ''));
+    save();
+
+  } catch(e) {
+    bubble.textContent = '⚠️ ' + e.message;
+  }
+
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('msgs').scrollTop = document.getElementById('msgs').scrollHeight;
+}
+
+// ── Keyboard ──
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('chat-input');
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+  inp.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  // Also allow Enter on setup screen
+  document.getElementById('key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveKey();
+  });
+
+  // Auto-launch if key exists
+  if (S.apiKey) launch();
+});
+</script>
+</body>
+</html>
