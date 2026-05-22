@@ -666,6 +666,39 @@ Your style: concise, strategic, decisive. Lead with the most important insight. 
 
 You are MEW. The empire wins.`;
 
+const EDIT_SYSTEM = `You are MEW's self-modification engine. You have full access to modify your own HTML/CSS/JS interface in real-time.
+
+The interface is a futuristic JARVIS-style HUD with:
+- CSS variables on :root (--cyan, --bg, --border, --green, --yellow, --red, --panel, --text, --muted, --blue, --dim, --font-hud, --font-data)
+- #topbar, #left, #center, #right, #bottom layout
+- #sphere-wrap with canvas sphere animation
+- .hud-panel panels with .panel-label headers
+- #mew-response for displaying responses
+- #voice-area with input + mic button
+- overlays: #ov-companies, #ov-agents, #ov-tasks
+- addTele(msg, type) for telemetry log entries
+- renderAll() to refresh stats
+- S object with companies, agents, tasks state
+
+The user wants to change the interface. Return ONLY valid JavaScript that runs in the browser — no markdown, no explanation, no code fences. Just raw JS.
+
+Your code should:
+1. Make the requested DOM/CSS change immediately
+2. Be clean, targeted, and safe
+3. End with: addTele('Edit applied: <short description>', 'ok');
+
+Examples of what you can do:
+- Change colors: document.documentElement.style.setProperty('--cyan', '#00ff88')
+- Add new panels: create elements and insert into #left, #right, or #bottom
+- Change text: document.querySelector('.mew-logo').textContent = 'NEW NAME'
+- Add buttons to #action-row
+- Resize panels: document.getElementById('left').style.width = '300px'
+- Add CSS: document.head.insertAdjacentHTML('beforeend', '<style>...</style>')
+- Add new data displays inside existing .hud-panel elements
+- Anything the user asks that modifies the live interface
+
+Return ONLY executable JavaScript. Nothing else.`;
+
 // ──────────────────────────────────────────────
 // PERSISTENCE
 // ──────────────────────────────────────────────
@@ -708,6 +741,7 @@ function launch(){
   document.getElementById('app').classList.add('visible');
   document.getElementById('bottom').style.display='flex';
   hydrate();
+  loadSelfEdits();
   initSphere();
   initAudio();
   initRadar();
@@ -967,6 +1001,96 @@ function setInput(t){
 }
 
 // ──────────────────────────────────────────────
+// SELF-EDIT ENGINE
+// ──────────────────────────────────────────────
+const EDIT_TRIGGERS = [
+  /^(change|make|update|set|turn|switch|modify|edit|redesign|adjust|move|resize|rename|add|remove|delete|show|hide|put|give)\b.*(color|colour|background|theme|font|size|panel|sphere|text|button|label|title|header|sidebar|layout|interface|ui|border|glow|width|height|name|icon|logo|section|column|row|display|style|look|appear|visibl)/i,
+  /\b(color|colour|theme|font|panel|sidebar|layout|interface|ui|sphere|redesign|rebrand)\b/i,
+  /^(make it|make the|change it|change the|turn it|set the|add a|add the|remove the|hide the|show the)/i,
+];
+
+function isEditCommand(text){
+  return EDIT_TRIGGERS.some(r => r.test(text));
+}
+
+function saveSelfEdit(code){
+  const edits = JSON.parse(localStorage.getItem('mew_edits')||'[]');
+  edits.push({code, ts: Date.now()});
+  localStorage.setItem('mew_edits', JSON.stringify(edits));
+}
+
+function loadSelfEdits(){
+  const edits = JSON.parse(localStorage.getItem('mew_edits')||'[]');
+  edits.forEach(e => { try{ eval(e.code); }catch(err){ console.warn('Self-edit replay failed:', err); } });
+  if(edits.length) addTele(`${edits.length} saved edit(s) restored`, 'ok');
+}
+
+window.resetMEWEdits = function(){
+  localStorage.removeItem('mew_edits');
+  location.reload();
+};
+
+async function mewSelfEdit(instruction){
+  window.mewSetSpeaking&&window.mewSetSpeaking(true);
+  document.getElementById('sphere-status').textContent = 'SELF-MODIFYING — REWRITING INTERFACE';
+  document.getElementById('mew-state').textContent = 'MEW EDIT MODE — NEURAL REWRITE ACTIVE';
+
+  const resp = document.getElementById('mew-response');
+  const txt  = document.getElementById('resp-text');
+  resp.classList.add('visible');
+  txt.textContent = '⚙ Generating interface edit…';
+
+  addTele(`Edit command: ${instruction.slice(0,50)}`, 'ok');
+  addDiag('Self-modification engine engaged');
+
+  try{
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':S.apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-opus-4-7',
+        max_tokens:2048,
+        system: EDIT_SYSTEM,
+        messages:[{role:'user', content: instruction}]
+      })
+    });
+
+    const data = await res.json();
+    const code = data.content?.[0]?.text || '';
+
+    // Strip markdown fences if Claude added them
+    const clean = code.replace(/^```[\w]*\n?/,'').replace(/\n?```$/,'').trim();
+
+    txt.textContent = '⚙ Applying edit…';
+
+    try{
+      eval(clean);
+      saveSelfEdit(clean);
+      txt.textContent = '✓ Edit applied. Say "reset MEW edits" to undo all changes.';
+      addDiag('Self-edit applied and saved');
+    } catch(e){
+      txt.textContent = '⚠ Edit error: ' + e.message;
+      addTele('Self-edit failed: ' + e.message, 'err');
+      console.error('MEW self-edit error:', e, '\nCode:', clean);
+    }
+
+  } catch(e){
+    txt.textContent = '⚠ ' + e.message;
+    addTele('Edit engine error: ' + e.message, 'err');
+  }
+
+  window.mewSetSpeaking&&window.mewSetSpeaking(false);
+  document.getElementById('sphere-status').textContent = 'IDLE — AWAITING INPUT';
+  document.getElementById('mew-state').textContent = 'MEW ONLINE — ALL SYSTEMS NOMINAL';
+  stopVoice();
+}
+
+// ──────────────────────────────────────────────
 // MEW API CALL (streaming)
 // ──────────────────────────────────────────────
 async function sendToMEW(){
@@ -991,6 +1115,14 @@ async function sendToMEW(){
   }
   if(lower==='status'||lower==='show status'){
     showStatus(); return;
+  }
+  if(lower==='reset mew edits'||lower==='reset edits'||lower==='undo all edits'){
+    window.resetMEWEdits(); return;
+  }
+
+  // Route to self-edit engine if it's an interface change command
+  if(isEditCommand(text)){
+    mewSelfEdit(text); return;
   }
 
   // Send to Claude
