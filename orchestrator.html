@@ -10,16 +10,16 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#000d1a;
-  --panel:rgba(0,30,60,0.55);
-  --border:rgba(0,180,255,0.18);
+  --panel:rgba(0,20,50,0.18);
+  --border:rgba(0,180,255,0.1);
   --cyan:#00d4ff;
   --blue:#0066ff;
   --green:#00ff88;
   --yellow:#ffe44d;
   --red:#ff3c5a;
-  --dim:rgba(0,180,255,0.5);
+  --dim:rgba(0,180,255,0.4);
   --text:#c8e8ff;
-  --muted:#4a7a9b;
+  --muted:#3a6a8b;
   --font-hud:'Orbitron',monospace;
   --font-data:'Share Tech Mono',monospace;
 }
@@ -277,15 +277,15 @@ body::before{
 #mew-response{
   position:absolute;
   top:12px;left:50%;transform:translateX(-50%);
-  width:420px;
-  background:rgba(0,15,40,0.92);
-  border:1px solid var(--border);
-  border-radius:2px;padding:10px 14px;
-  font-size:11px;line-height:1.7;color:var(--cyan);
-  display:none;max-height:160px;overflow-y:auto;
+  width:460px;
+  background:rgba(0,10,30,0.55);
+  border:1px solid rgba(0,180,255,0.15);
+  border-radius:4px;padding:14px 18px;
+  font-size:12px;line-height:1.8;color:var(--cyan);
+  display:none;max-height:200px;overflow-y:auto;
   letter-spacing:.02em;
-  box-shadow:0 0 30px rgba(0,100,200,0.2);
-  backdrop-filter:blur(8px);
+  box-shadow:0 0 40px rgba(0,80,180,0.15),inset 0 0 30px rgba(0,20,60,0.3);
+  backdrop-filter:blur(16px);
 }
 #mew-response::-webkit-scrollbar{width:2px}
 #mew-response::-webkit-scrollbar-thumb{background:var(--border)}
@@ -444,17 +444,8 @@ body::before{
 
   <!-- LEFT -->
   <div id="left">
-    <div class="hud-panel">
-      <div class="panel-label">System Vitals</div>
-      <div class="vital-row"><span class="vital-key">NEURAL CORE</span><div class="vital-bar"><div class="vital-fill" id="v1" style="width:37%"></div></div><span class="vital-val" id="vv1">37.5%</span></div>
-      <div class="vital-row"><span class="vital-key">MEMORY</span><div class="vital-bar"><div class="vital-fill" id="v2" style="width:64%"></div></div><span class="vital-val" id="vv2">64.3%</span></div>
-      <div class="vital-row"><span class="vital-key">LATENCY</span><div class="vital-bar"><div class="vital-fill" id="v3" style="width:90%"></div></div><span class="vital-val" id="vv3">9.9ms</span></div>
-      <div class="vital-row"><span class="vital-key">SIGNAL</span><div class="vital-bar"><div class="vital-fill" id="v4" style="width:95%"></div></div><span class="vital-val" id="vv4">95.5%</span></div>
-      <div class="vital-row"><span class="vital-key">THERMAL</span><div class="vital-bar"><div class="vital-fill" id="v5" style="width:36%"></div></div><span class="vital-val" id="vv5">36.4°C</span></div>
-      <div class="vital-row"><span class="vital-key">THROUGHPUT</span><div class="vital-bar"><div class="vital-fill" id="v6" style="width:72%"></div></div><span class="vital-val" id="vv6">1.26/s</span></div>
-    </div>
     <div class="hud-panel grow">
-      <div class="panel-label">Telemetry</div>
+      <div class="panel-label">Activity</div>
       <div class="tele-list" id="tele-list"></div>
     </div>
   </div>
@@ -507,32 +498,17 @@ body::before{
   <!-- RIGHT -->
   <div id="right">
     <div class="hud-panel">
-      <div class="panel-label">Session</div>
-      <div style="font-size:9px;color:var(--muted);line-height:1.9">
-        <div>SESSION <span id="sess-id" style="color:var(--cyan)">—</span></div>
-        <div>DATE <span style="color:var(--cyan)" id="sess-date">—</span></div>
+      <div class="panel-label">Empire</div>
+      <div style="font-size:9px;color:var(--muted);line-height:2">
         <div>COMPANIES <span id="r-co" style="color:var(--cyan)">0</span></div>
         <div>AGENTS <span id="r-ag" style="color:var(--cyan)">0</span></div>
         <div>TASKS <span id="r-tk" style="color:var(--cyan)">0</span></div>
-        <div>COMPLETED <span id="r-done" style="color:var(--green)">0</span></div>
+        <div>DONE <span id="r-done" style="color:var(--green)">0</span></div>
       </div>
-    </div>
-    <div class="hud-panel">
-      <div class="panel-label">Audio</div>
-      <div class="audio-bars" id="audio-bars"></div>
     </div>
     <div class="hud-panel grow">
-      <div class="panel-label">Diagnostics</div>
+      <div class="panel-label">Log</div>
       <div class="tele-list" id="diag-list"></div>
-    </div>
-    <div class="hud-panel">
-      <div class="panel-label">Network</div>
-      <div style="font-size:9px;color:var(--muted);line-height:1.8">
-        <div>UPLINK <span style="color:var(--green)" id="uplink">1.2MB/s</span></div>
-        <div>DOWNLINK <span style="color:var(--cyan)" id="downlink">820KB/s</span></div>
-        <div>NODES <span style="color:var(--cyan)">4/5 SYNC</span></div>
-        <div>LATENCY <span style="color:var(--yellow)">12ms</span></div>
-      </div>
     </div>
   </div>
 </div>
@@ -1127,12 +1103,13 @@ async function sendToMEW(){
     mewSelfEdit(text); return;
   }
 
-  // Route through agent execution engine if connected
-  if(agentConnected && agentSocket){
+  // Route to agent only for action commands — chat goes direct
+  const ACTION = /\b(create|make|add|build|run|execute|spawn|delete|remove|update|write|generate|deploy|launch|install|fetch|search|analyze|calculate|send|post|code|script|file|task|company|agent)\b/i;
+  if(agentConnected && agentSocket && ACTION.test(text)){
     sendViaAgent(text); return;
   }
 
-  // Send to Claude (direct API fallback)
+  // Direct streaming API for chat
   window.mewSetSpeaking&&window.mewSetSpeaking(true);
   document.getElementById('sphere-status').textContent='PROCESSING — NEURAL CORE ACTIVE';
   document.getElementById('mew-state').textContent='MEW THINKING — ADAPTIVE REASONING ENGAGED';
