@@ -1509,6 +1509,38 @@ function initAgentSocket(){
       }
     });
 
+    agentSocket.on('empire_update', (data)=>{
+      const {action, payload} = data;
+      const sp = {pending:0, in_progress:50, completed:100};
+      if(action==='create_company'){
+        S.companies[payload.id]=payload;
+        addTele(`Company created: ${payload.name}`,'ok');
+      } else if(action==='delete_company'){
+        const n=S.companies[payload.id]?.name; delete S.companies[payload.id];
+        addTele(`Company removed: ${n}`,'err');
+      } else if(action==='create_agent'){
+        S.agents[payload.id]=payload;
+        addTele(`Agent deployed: ${payload.name}`,'ok');
+      } else if(action==='delete_agent'){
+        const n=S.agents[payload.id]?.name; delete S.agents[payload.id];
+        addTele(`Agent removed: ${n}`,'err');
+      } else if(action==='create_task'){
+        S.tasks[payload.id]=payload;
+        addTele(`Task created: ${payload.title}`,'ok');
+      } else if(action==='update_task'){
+        if(S.tasks[payload.id]){
+          Object.assign(S.tasks[payload.id], payload);
+          if(payload.status && payload.progress===undefined)
+            S.tasks[payload.id].progress = sp[payload.status]??0;
+        }
+        addTele(`Task updated: ${S.tasks[payload.id]?.title}`,'ok');
+      } else if(action==='delete_task'){
+        const n=S.tasks[payload.id]?.title; delete S.tasks[payload.id];
+        addTele(`Task removed: ${n}`,'err');
+      }
+      renderAll(); persist();
+    });
+
     agentSocket.on('agent_error', (data)=>{
       agentStreaming = false;
       document.getElementById('resp-text').textContent = '⚠ Agent error: ' + (data.error||'unknown');

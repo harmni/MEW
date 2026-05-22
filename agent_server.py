@@ -6,9 +6,11 @@ Receives commands from the browser, executes tools, streams results back.
 
 import os
 import re
+import uuid
 import json
 import subprocess
 import threading
+from datetime import datetime
 from flask import Flask, request, Response
 from flask_socketio import SocketIO, emit
 import anthropic
@@ -142,6 +144,92 @@ TOOLS = [
             },
             "required": ["method", "url", "description"]
         }
+    },
+    {
+        "name": "create_company",
+        "description": "Register a new company in the MEW empire dashboard. Use when the user asks to add or create a company.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name":        {"type": "string", "description": "Company name"},
+                "industry":    {"type": "string", "description": "Industry sector"},
+                "description": {"type": "string", "description": "Brief description"}
+            },
+            "required": ["name", "industry"]
+        }
+    },
+    {
+        "name": "delete_company",
+        "description": "Remove a company from the MEW empire dashboard.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Company ID from empire state"}
+            },
+            "required": ["id"]
+        }
+    },
+    {
+        "name": "create_agent",
+        "description": "Deploy a new agent in the MEW empire dashboard. Use when the user asks to add, spawn, or create an agent.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name":           {"type": "string", "description": "Agent name or designation"},
+                "specialization": {"type": "string", "description": "Agent role or specialization"}
+            },
+            "required": ["name", "specialization"]
+        }
+    },
+    {
+        "name": "delete_agent",
+        "description": "Remove an agent from the MEW empire dashboard.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Agent ID from empire state"}
+            },
+            "required": ["id"]
+        }
+    },
+    {
+        "name": "create_task",
+        "description": "Create a new task in the MEW empire dashboard. Use when the user asks to add or create a task.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title":       {"type": "string", "description": "Task title"},
+                "description": {"type": "string", "description": "Task description"},
+                "assigned_to": {"type": "string", "description": "Who this task is assigned to"},
+                "priority":    {"type": "string", "enum": ["low","medium","high","critical"]}
+            },
+            "required": ["title"]
+        }
+    },
+    {
+        "name": "update_task",
+        "description": "Update a task's status, progress, or assignment in the MEW empire dashboard.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id":          {"type": "string", "description": "Task ID from empire state"},
+                "status":      {"type": "string", "enum": ["pending","in_progress","completed"]},
+                "progress":    {"type": "integer", "description": "Progress 0-100"},
+                "assigned_to": {"type": "string"}
+            },
+            "required": ["id"]
+        }
+    },
+    {
+        "name": "delete_task",
+        "description": "Remove a task from the MEW empire dashboard.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Task ID from empire state"}
+            },
+            "required": ["id"]
+        }
     }
 ]
 
@@ -196,6 +284,58 @@ def run_tool(name, inp, sid):
                 timeout=15
             )
             out = f"Status: {resp.status_code}\n{resp.text[:2000]}"
+
+        elif name == "create_company":
+            cid = str(uuid.uuid4())[:8]
+            payload = {
+                "id": cid, "name": inp["name"],
+                "industry": inp.get("industry",""), "desc": inp.get("description",""),
+                "created": datetime.now().strftime("%b %d, %Y")
+            }
+            socketio.emit("empire_update", {"action":"create_company","payload":payload}, room=sid)
+            out = f"Company '{inp['name']}' created (ID: {cid})"
+
+        elif name == "delete_company":
+            socketio.emit("empire_update", {"action":"delete_company","payload":{"id":inp["id"]}}, room=sid)
+            out = f"Company {inp['id']} deleted"
+
+        elif name == "create_agent":
+            aid = str(uuid.uuid4())[:8]
+            payload = {
+                "id": aid, "name": inp["name"],
+                "spec": inp.get("specialization","General"),
+                "created": datetime.now().strftime("%b %d, %Y")
+            }
+            socketio.emit("empire_update", {"action":"create_agent","payload":payload}, room=sid)
+            out = f"Agent '{inp['name']}' deployed (ID: {aid})"
+
+        elif name == "delete_agent":
+            socketio.emit("empire_update", {"action":"delete_agent","payload":{"id":inp["id"]}}, room=sid)
+            out = f"Agent {inp['id']} removed"
+
+        elif name == "create_task":
+            tid = str(uuid.uuid4())[:8]
+            payload = {
+                "id": tid, "title": inp["title"],
+                "description": inp.get("description",""),
+                "assign": inp.get("assigned_to",""), "priority": inp.get("priority","medium"),
+                "status": "pending", "progress": 0,
+                "created": datetime.now().strftime("%b %d, %Y")
+            }
+            socketio.emit("empire_update", {"action":"create_task","payload":payload}, room=sid)
+            out = f"Task '{inp['title']}' created (ID: {tid})"
+
+        elif name == "update_task":
+            updates = {k:v for k,v in inp.items() if k != "id"}
+            status_progress = {"pending":0,"in_progress":50,"completed":100}
+            if "status" in updates and "progress" not in updates:
+                updates["progress"] = status_progress.get(updates["status"], 0)
+            socketio.emit("empire_update", {"action":"update_task","payload":{"id":inp["id"],**updates}}, room=sid)
+            out = f"Task {inp['id']} updated: {updates}"
+
+        elif name == "delete_task":
+            socketio.emit("empire_update", {"action":"delete_task","payload":{"id":inp["id"]}}, room=sid)
+            out = f"Task {inp['id']} deleted"
 
         else:
             out = f"Unknown tool: {name}"
