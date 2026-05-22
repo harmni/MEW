@@ -48,34 +48,28 @@ load_empire()
 
 @app.route("/")
 def serve_ui():
-    """Serve the MEW interface with API key injected and socket pointed at this server."""
     html_path = os.path.join(BASE_DIR, "orchestrator.html")
+    if not os.path.exists(html_path):
+        return Response(
+            "<h2 style='font-family:monospace;color:#00d4ff;background:#000d1a;padding:40px'>"
+            "⚠ orchestrator.html not found.<br><br>"
+            f"Put orchestrator.html in the same folder as agent_server.py:<br>"
+            f"<code>{BASE_DIR}</code></h2>",
+            mimetype="text/html", status=500
+        )
     with open(html_path, encoding="utf-8") as f:
         html = f.read()
-
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
-
-    # Inject API key — replace the localStorage getter with the real key
     html = html.replace(
         "get apiKey(){ return localStorage.getItem('mew_key')||''; }",
         f"get apiKey(){{ return '{api_key}'; }}"
     )
-    # Skip the setup screen
     html = html.replace("if(S.apiKey) launch();", "launch();")
-
-    # Use the bundled socket.io served by Flask-SocketIO, not CDN
     html = html.replace(
         '<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>',
         '<script src="/socket.io/socket.io.js"></script>'
     )
-
-    # Connect socket to same origin (no hardcoded localhost URL needed)
-    html = re.sub(
-        r"io\('http://localhost:5001'[^)]*\)",
-        "io()",
-        html
-    )
-
+    html = re.sub(r"io\('http://localhost:5001'[^)]*\)", "io()", html)
     return Response(html, mimetype="text/html")
 
 
