@@ -23,6 +23,28 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(BASE_DIR, "mew_state.json")
+
+# Server-side empire state
+empire = {"companies": {}, "agents": {}, "tasks": {}}
+
+def load_empire():
+    global empire
+    try:
+        if os.path.exists(STATE_FILE):
+            with open(STATE_FILE) as f:
+                empire = json.load(f)
+    except Exception:
+        pass
+
+def save_empire():
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(empire, f)
+    except Exception:
+        pass
+
+load_empire()
 
 @app.route("/")
 def serve_ui():
@@ -292,11 +314,15 @@ def run_tool(name, inp, sid):
                 "industry": inp.get("industry",""), "desc": inp.get("description",""),
                 "created": datetime.now().strftime("%b %d, %Y")
             }
-            socketio.emit("empire_update", {"action":"create_company","payload":payload}, room=sid)
+            empire["companies"][cid] = payload
+            save_empire()
+            socketio.emit("empire_update", {"action":"create_company","payload":payload})
             out = f"Company '{inp['name']}' created (ID: {cid})"
 
         elif name == "delete_company":
-            socketio.emit("empire_update", {"action":"delete_company","payload":{"id":inp["id"]}}, room=sid)
+            empire["companies"].pop(inp["id"], None)
+            save_empire()
+            socketio.emit("empire_update", {"action":"delete_company","payload":{"id":inp["id"]}})
             out = f"Company {inp['id']} deleted"
 
         elif name == "create_agent":
@@ -306,11 +332,15 @@ def run_tool(name, inp, sid):
                 "spec": inp.get("specialization","General"),
                 "created": datetime.now().strftime("%b %d, %Y")
             }
-            socketio.emit("empire_update", {"action":"create_agent","payload":payload}, room=sid)
+            empire["agents"][aid] = payload
+            save_empire()
+            socketio.emit("empire_update", {"action":"create_agent","payload":payload})
             out = f"Agent '{inp['name']}' deployed (ID: {aid})"
 
         elif name == "delete_agent":
-            socketio.emit("empire_update", {"action":"delete_agent","payload":{"id":inp["id"]}}, room=sid)
+            empire["agents"].pop(inp["id"], None)
+            save_empire()
+            socketio.emit("empire_update", {"action":"delete_agent","payload":{"id":inp["id"]}})
             out = f"Agent {inp['id']} removed"
 
         elif name == "create_task":
@@ -322,7 +352,9 @@ def run_tool(name, inp, sid):
                 "status": "pending", "progress": 0,
                 "created": datetime.now().strftime("%b %d, %Y")
             }
-            socketio.emit("empire_update", {"action":"create_task","payload":payload}, room=sid)
+            empire["tasks"][tid] = payload
+            save_empire()
+            socketio.emit("empire_update", {"action":"create_task","payload":payload})
             out = f"Task '{inp['title']}' created (ID: {tid})"
 
         elif name == "update_task":
@@ -330,11 +362,16 @@ def run_tool(name, inp, sid):
             status_progress = {"pending":0,"in_progress":50,"completed":100}
             if "status" in updates and "progress" not in updates:
                 updates["progress"] = status_progress.get(updates["status"], 0)
-            socketio.emit("empire_update", {"action":"update_task","payload":{"id":inp["id"],**updates}}, room=sid)
+            if inp["id"] in empire["tasks"]:
+                empire["tasks"][inp["id"]].update(updates)
+            save_empire()
+            socketio.emit("empire_update", {"action":"update_task","payload":{"id":inp["id"],**updates}})
             out = f"Task {inp['id']} updated: {updates}"
 
         elif name == "delete_task":
-            socketio.emit("empire_update", {"action":"delete_task","payload":{"id":inp["id"]}}, room=sid)
+            empire["tasks"].pop(inp["id"], None)
+            save_empire()
+            socketio.emit("empire_update", {"action":"delete_task","payload":{"id":inp["id"]}})
             out = f"Task {inp['id']} deleted"
 
         else:
@@ -421,6 +458,18 @@ def agent_loop(command, empire_state, conversation_history, sid):
 @socketio.on("connect")
 def on_connect():
     emit("connected", {"status": "MEW Agent Server online"})
+    emit("full_state", empire)
+
+
+@socketio.on("push_state")
+def handle_push_state(data):
+    """Browser pushes its local state (companies/agents/tasks) to server."""
+    global empire
+    if "companies" in data: empire["companies"] = data["companies"]
+    if "agents"    in data: empire["agents"]    = data["agents"]
+    if "tasks"     in data: empire["tasks"]     = data["tasks"]
+    save_empire()
+    socketio.emit("full_state", empire)
 
 
 @socketio.on("agent_command")

@@ -703,6 +703,11 @@ function persist(){
     companies:S.companies, agents:S.agents, tasks:S.tasks,
     log:S.log.slice(-80), conversation:S.conversation.slice(-30)
   }));
+  if(agentConnected && agentSocket){
+    agentSocket.emit('push_state', {
+      companies:S.companies, agents:S.agents, tasks:S.tasks
+    });
+  }
 }
 function hydrate(){
   try{
@@ -1445,6 +1450,17 @@ function initAgentSocket(){
       updateAgentChip(true);
       addTele('Agent execution engine online — EXECUTE MODE', 'ok');
       addDiag('Agent server connected at localhost:5001');
+      // Push local state up so server has it, then server echoes back full_state
+      agentSocket.emit('push_state', {
+        companies: S.companies, agents: S.agents, tasks: S.tasks
+      });
+    });
+
+    agentSocket.on('full_state', (data)=>{
+      if(data.companies) S.companies = data.companies;
+      if(data.agents)    S.agents    = data.agents;
+      if(data.tasks)     S.tasks     = data.tasks;
+      renderAll(); persist();
     });
 
     agentSocket.on('disconnect', ()=>{
