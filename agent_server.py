@@ -145,7 +145,7 @@ TOOLS = [
     }
 ]
 
-WORKSPACE = "/home/user/MEW/workspace"
+WORKSPACE = os.path.join(BASE_DIR, "workspace")
 os.makedirs(WORKSPACE, exist_ok=True)
 
 
