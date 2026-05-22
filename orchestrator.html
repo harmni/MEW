@@ -120,7 +120,7 @@ body::before{
 #app{display:none;flex:1;overflow:hidden;display:none}
 #app.visible{display:flex}
 #left{width:210px;flex-shrink:0;display:flex;flex-direction:column;gap:0;overflow:hidden;border-right:1px solid var(--border)}
-#center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden}
+#center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;position:relative;overflow:hidden;padding:12px 0 0}
 #right{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:0;overflow:hidden;border-left:1px solid var(--border)}
 
 /* ── PANELS ── */
@@ -210,7 +210,7 @@ body::before{
 
 /* MEW status (rings active indicator) */
 .mew-status{
-  position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);
+  position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);
   font-family:var(--font-hud);font-size:8px;color:var(--cyan);
   letter-spacing:.2em;text-shadow:0 0 8px var(--cyan);
   display:flex;align-items:center;gap:6px;white-space:nowrap;
@@ -222,9 +222,8 @@ body::before{
 
 /* ── VOICE AREA ── */
 #voice-area{
-  position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
-  display:flex;flex-direction:column;align-items:center;gap:10px;
-  width:500px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  width:500px;padding-bottom:16px;
 }
 .voice-bar{
   display:flex;align-items:center;gap:10px;
@@ -329,7 +328,6 @@ body::before{
 
 /* action menu */
 #action-row{
-  position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
   display:flex;gap:8px;
 }
 .act-btn{
@@ -483,28 +481,24 @@ body::before{
       <div class="mew-status" id="mew-state">MEW ONLINE — ALL SYSTEMS NOMINAL</div>
     </div>
 
-    <!-- Voice / Chat -->
-    <div id="voice-area">
-      <div class="voice-chips">
-        <button class="v-chip" onclick="setInput('What should I focus on this week?')">WEEKLY FOCUS</button>
-        <button class="v-chip" onclick="setInput('Give me a strategic overview of my empire')">EMPIRE OVERVIEW</button>
-        <button class="v-chip" onclick="setInput('What are the top risks I should address?')">RISK REPORT</button>
-        <button class="v-chip" onclick="setInput('Create a 90-day growth plan')">90-DAY PLAN</button>
+    <!-- Bottom controls -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 16px 14px">
+      <!-- Action buttons -->
+      <div id="action-row">
+        <button class="act-btn" onclick="openOverlay('companies')">🏢 COMPANIES</button>
+        <button class="act-btn" onclick="openOverlay('agents')">🤖 AGENTS</button>
+        <button class="act-btn" onclick="openOverlay('tasks')">✅ TASKS</button>
+        <button class="act-btn" onclick="changeKey()">🔑 KEY</button>
       </div>
-      <div class="voice-bar">
-        <button class="mic-btn" id="mic-btn" onclick="toggleVoice()" title="Voice Command">🎤</button>
-        <input id="voice-input" placeholder="SPEAK OR TYPE YOUR COMMAND…" onkeydown="if(event.key==='Enter')sendToMEW()"/>
-        <button class="send-btn2" onclick="sendToMEW()">▸</button>
+      <!-- Voice / Chat -->
+      <div id="voice-area">
+        <div class="voice-bar">
+          <button class="mic-btn" id="mic-btn" onclick="toggleVoice()" title="Voice Command">🎤</button>
+          <input id="voice-input" placeholder="SPEAK OR TYPE YOUR COMMAND…" onkeydown="if(event.key==='Enter')sendToMEW()"/>
+          <button class="send-btn2" onclick="sendToMEW()">▸</button>
+        </div>
+        <div class="voice-hint">CLICK 🎤 TO USE VOICE &nbsp;|&nbsp; ENTER TO SEND &nbsp;|&nbsp; SAY "CHANGE THE COLOR" TO EDIT MEW</div>
       </div>
-      <div class="voice-hint">VOICE COMMAND ACTIVE — CLICK 🎤 OR TYPE &nbsp;|&nbsp; ENTER TO SEND</div>
-    </div>
-
-    <!-- Action buttons -->
-    <div id="action-row">
-      <button class="act-btn" onclick="openOverlay('companies')">🏢 COMPANIES</button>
-      <button class="act-btn" onclick="openOverlay('agents')">🤖 AGENTS</button>
-      <button class="act-btn" onclick="openOverlay('tasks')">✅ TASKS</button>
-      <button class="act-btn" onclick="changeKey()">🔑 KEY</button>
     </div>
   </div>
 
