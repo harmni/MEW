@@ -57,9 +57,14 @@ cp .env.example .env
 
 ## Usage
 
-### Interactive Session
+### Three Levels of Orchestrator
 
-Start an interactive orchestrator session:
+1. **Base Orchestrator** (`orchestrator.py`) - Simple, focused
+2. **Advanced Orchestrator** (`advanced_orchestrator.py`) - With persistence
+3. **Tool-Enabled Orchestrator** (`orchestrator_with_tools.py`) - Full featured
+
+### Quick Start
+
 ```bash
 python orchestrator.py
 ```
@@ -84,6 +89,8 @@ You: What's our timeline?
 Orchestrator: Based on resources available, here's the phased approach...
 [Provides strategic roadmap with milestones and agent assignments]
 ```
+
+**See [USAGE_GUIDE.md](USAGE_GUIDE.md) for comprehensive documentation.**
 
 ## Architecture
 
