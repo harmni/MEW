@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>MEW — My Empire Wins</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -433,6 +434,7 @@ body::before{
   <div class="top-chip secure"><span class="dot"></span>SECURE</div>
   <div class="top-chip"><span class="dot" style="background:var(--yellow);box-shadow:0 0 6px var(--yellow)"></span>ENCRYPTED</div>
   <div class="top-chip" style="color:var(--cyan);border-color:rgba(0,212,255,0.3)">AUTH-LVL9</div>
+  <div class="top-chip" id="agent-chip"><span class="dot" style="background:var(--muted)"></span>DIRECT MODE</div>
   <div class="top-stat"><strong id="t-co">0</strong> CO &nbsp; <strong id="t-ag">0</strong> AG &nbsp; <strong id="t-tk">0</strong> TK</div>
   <div class="top-clock" id="clock">00:00:00</div>
 </div>
@@ -748,6 +750,7 @@ function launch(){
   addDiag('System boot complete');
   addDiag('API connection verified');
   addDiag('Session initialized');
+  initAgentSocket();
   document.getElementById('sess-id').textContent = uid().toUpperCase();
   document.getElementById('sess-date').textContent = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
@@ -1119,7 +1122,12 @@ async function sendToMEW(){
     mewSelfEdit(text); return;
   }
 
-  // Send to Claude
+  // Route through agent execution engine if connected
+  if(agentConnected && agentSocket){
+    sendViaAgent(text); return;
+  }
+
+  // Send to Claude (direct API fallback)
   window.mewSetSpeaking&&window.mewSetSpeaking(true);
   document.getElementById('sphere-status').textContent='PROCESSING — NEURAL CORE ACTIVE';
   document.getElementById('mew-state').textContent='MEW THINKING — ADAPTIVE REASONING ENGAGED';
@@ -1401,6 +1409,144 @@ function closeOverlay(name){
 document.querySelectorAll('.overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
 });
+
+// ──────────────────────────────────────────────
+// AGENT SERVER CONNECTION (localhost:5001)
+// ──────────────────────────────────────────────
+let agentSocket = null;
+let agentConnected = false;
+let agentStreaming = false;
+
+function updateAgentChip(connected){
+  const chip = document.getElementById('agent-chip');
+  if(!chip) return;
+  if(connected){
+    chip.innerHTML = '<span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span>AGENT MODE';
+    chip.style.borderColor = 'rgba(0,255,136,0.3)';
+    chip.style.color = 'var(--green)';
+  } else {
+    chip.innerHTML = '<span class="dot" style="background:var(--muted)"></span>DIRECT MODE';
+    chip.style.borderColor = 'var(--border)';
+    chip.style.color = 'var(--dim)';
+  }
+}
+
+function initAgentSocket(){
+  try {
+    agentSocket = io('http://localhost:5001', {
+      timeout: 3000,
+      reconnection: true,
+      reconnectionDelay: 8000,
+      reconnectionAttempts: 5
+    });
+
+    agentSocket.on('connect', ()=>{
+      agentConnected = true;
+      updateAgentChip(true);
+      addTele('Agent execution engine online — EXECUTE MODE', 'ok');
+      addDiag('Agent server connected at localhost:5001');
+    });
+
+    agentSocket.on('disconnect', ()=>{
+      agentConnected = false;
+      updateAgentChip(false);
+      addTele('Agent server disconnected — direct API mode', '');
+    });
+
+    agentSocket.on('connect_error', ()=>{
+      if(agentConnected){ agentConnected = false; updateAgentChip(false); }
+    });
+
+    agentSocket.on('agent_status', (data)=>{
+      document.getElementById('sphere-status').textContent = data.status;
+    });
+
+    agentSocket.on('agent_text', (data)=>{
+      if(!agentStreaming){
+        agentStreaming = true;
+        const resp = document.getElementById('mew-response');
+        document.getElementById('resp-text').textContent = '';
+        resp.classList.add('visible');
+      }
+      const txt = document.getElementById('resp-text');
+      txt.textContent += data.text;
+      document.getElementById('mew-response').scrollTop = document.getElementById('mew-response').scrollHeight;
+    });
+
+    agentSocket.on('tool_start', (data)=>{
+      const desc = (data.desc||'').slice(0,50);
+      addTele(`⚙ ${data.tool}${desc?' — '+desc:''}`, 'ok');
+      addDiag(`EXEC: ${data.tool} — ${desc}`);
+      document.getElementById('sphere-status').textContent = `EXECUTING — ${data.tool.replace(/_/g,' ').toUpperCase()}`;
+      document.getElementById('mew-state').textContent = 'MEW AGENT — TOOL EXECUTING';
+    });
+
+    agentSocket.on('tool_done', (data)=>{
+      const preview = (data.result||'').slice(0,60).replace(/\n/g,' ');
+      addDiag(`DONE: ${data.tool} → ${preview}${preview.length>=60?'…':''}`);
+    });
+
+    agentSocket.on('agent_done', (data)=>{
+      agentStreaming = false;
+      window.mewSetSpeaking&&window.mewSetSpeaking(false);
+      document.getElementById('sphere-status').textContent = 'IDLE — AWAITING COMMAND';
+      document.getElementById('mew-state').textContent = 'MEW ONLINE — ALL SYSTEMS NOMINAL';
+      addTele(`Agent done (${data.loops} tool round${data.loops!==1?'s':''})`, 'ok');
+      const full = data.full_text||'';
+      if(full){
+        S.conversation.push({role:'assistant', content:full});
+        if(S.conversation.length>30) S.conversation=S.conversation.slice(-30);
+        persist();
+      }
+      stopVoice();
+      if(window.speechSynthesis && full){
+        const utt=new SpeechSynthesisUtterance(full.slice(0,200));
+        utt.rate=0.92; utt.pitch=0.85;
+        const voices=speechSynthesis.getVoices();
+        const v=voices.find(v=>v.name.includes('Google')||v.name.includes('Daniel')||v.lang==='en-US');
+        if(v) utt.voice=v;
+        speechSynthesis.speak(utt);
+      }
+    });
+
+    agentSocket.on('agent_error', (data)=>{
+      agentStreaming = false;
+      document.getElementById('resp-text').textContent = '⚠ Agent error: ' + (data.error||'unknown');
+      document.getElementById('mew-response').classList.add('visible');
+      addTele('Agent error: ' + (data.error||'unknown'), 'err');
+      window.mewSetSpeaking&&window.mewSetSpeaking(false);
+      document.getElementById('sphere-status').textContent = 'ERROR — CHECK AGENT SERVER';
+      document.getElementById('mew-state').textContent = 'MEW ONLINE — ALL SYSTEMS NOMINAL';
+      stopVoice();
+    });
+
+  } catch(e){
+    console.warn('Agent server init failed:', e);
+  }
+}
+
+function sendViaAgent(command){
+  window.mewSetSpeaking&&window.mewSetSpeaking(true);
+  document.getElementById('sphere-status').textContent = 'AGENT MODE — EXECUTING COMMAND';
+  document.getElementById('mew-state').textContent = 'MEW AGENT ACTIVE — DEPLOYING TOOLS';
+  const resp = document.getElementById('mew-response');
+  const txt  = document.getElementById('resp-text');
+  resp.classList.add('visible');
+  txt.textContent = '⚙ Agent executing…';
+  agentStreaming = false;
+  S.conversation.push({role:'user', content:command});
+  addTele(`Agent: ${command.slice(0,50)}${command.length>50?'…':''}`, 'ok');
+  addDiag('Routing to agent execution engine');
+  agentSocket.emit('agent_command', {
+    command,
+    empire_state: {
+      companies: Object.values(S.companies),
+      agents:    Object.values(S.agents),
+      tasks:     Object.values(S.tasks)
+    },
+    conversation: S.conversation.slice(-10)
+  });
+}
 
 // ──────────────────────────────────────────────
 // UTILS
