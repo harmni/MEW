@@ -5,10 +5,11 @@ Receives commands from the browser, executes tools, streams results back.
 """
 
 import os
+import re
 import json
 import subprocess
 import threading
-from flask import Flask, request
+from flask import Flask, request, Response
 from flask_socketio import SocketIO, emit
 import anthropic
 from dotenv import load_dotenv
@@ -18,6 +19,41 @@ load_dotenv()
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+@app.route("/")
+def serve_ui():
+    """Serve the MEW interface with API key injected and socket pointed at this server."""
+    html_path = os.path.join(BASE_DIR, "orchestrator.html")
+    with open(html_path, encoding="utf-8") as f:
+        html = f.read()
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+
+    # Inject API key — replace the localStorage getter with the real key
+    html = html.replace(
+        "get apiKey(){ return localStorage.getItem('mew_key')||''; }",
+        f"get apiKey(){{ return '{api_key}'; }}"
+    )
+    # Skip the setup screen
+    html = html.replace("if(S.apiKey) launch();", "launch();")
+
+    # Use the bundled socket.io served by Flask-SocketIO, not CDN
+    html = html.replace(
+        '<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>',
+        '<script src="/socket.io/socket.io.js"></script>'
+    )
+
+    # Connect socket to same origin (no hardcoded localhost URL needed)
+    html = re.sub(
+        r"io\('http://localhost:5001'[^)]*\)",
+        "io()",
+        html
+    )
+
+    return Response(html, mimetype="text/html")
+
 
 AGENT_SYSTEM = """You are MEW — My Empire Wins. You are a fully autonomous AI agent running on the user's local machine with real execution capabilities.
 
@@ -270,6 +306,6 @@ def ping():
 if __name__ == "__main__":
     print("\n" + "="*50)
     print("  MEW AGENT SERVER")
-    print("  ws://localhost:5001")
+    print("  Open in Chrome:  http://localhost:5001")
     print("="*50 + "\n")
     socketio.run(app, host="0.0.0.0", port=5001, debug=False, allow_unsafe_werkzeug=True)

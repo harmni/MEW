@@ -1,5 +1,5 @@
 #!/bin/bash
-# MEW Startup Script — launches the agent execution server
+# MEW Startup Script
 
 cd "$(dirname "$0")"
 
@@ -13,11 +13,13 @@ echo ""
 fuser -k 5001/tcp 2>/dev/null && echo "  Cleared port 5001" || true
 
 # Check dependencies
-if ! python3 -c "import flask_socketio, anthropic" 2>/dev/null; then
+if ! python3 -c "import flask_socketio, anthropic, requests" 2>/dev/null; then
   echo "  Installing dependencies..."
   pip install flask flask-socketio python-dotenv anthropic requests --quiet
 fi
 
-echo "  Starting MEW Agent Server on port 5001..."
+echo "  Starting MEW Agent Server..."
+echo ""
+echo "  ▸ Open Chrome and go to:  http://localhost:5001"
 echo ""
 python3 agent_server.py
